@@ -1,4 +1,4 @@
-# Adam and Amanda. Schizophrenia-linked genetic influences on psychomotor performance
+# Schizophrenia-linked genetic influences on psychomotor performance
 # Author: AMC & ABZ, Nov 2015
 
 #### Housekeeping
@@ -83,7 +83,36 @@ rfGrid     <- expand.grid(.mtry = c(3,4,10,25))
 
 # Train models
 
+### just checking which models are now available for regression/dual use
+t <- getModelInfo()
+m <- list();
+for (i in names(t)){
+    if (t[[i]]$type != "Classification"){
+        m <- c(m, t[i])
+    }
+}
+
+
+glmPipeline <- function(response, Xmat = predictors, cvpar = fitControl,...){
+    set.seed(1)
+    model <- train(x = Xmat, y = response,
+                   method = "glm",
+                   metric = "Rsquared",
+                   trControl = cvpar)
+    perf <- getTrainPerf(model)
+    return(list(model,perf))
+}
+
+glm.loop     <- lapply(targets, function(i) glmPipeline(i))
+glm.loop.log <- lapply(log.targets, function(i) glmPipeline(i))
+glm.models   <- lapply(glm.loop, function(i) i[[1]])
+glm.perfs    <- lapply(glm.loop, function(i) i[[2]])
+glm.models.log  <- lapply(glm.loop.log, function(i) i[[1]])
+glm.perfs.log   <- lapply(glm.loop.log, function(i) i[[2]])
+
+
 gbmPipeline <- function(response, Xmat = predictors, grid = gbmGrid, cvpar = fitControl,...){
+    set.seed(1)
     model <- train(x = Xmat, y = response,
                    method = "gbm",
                    metric = "Rsquared",
@@ -101,6 +130,7 @@ gbm.models.log  <- lapply(gbm.loop.log, function(i) i[[1]])
 gbm.perfs.log   <- lapply(gbm.loop.log, function(i) i[[2]])
 
 rfPipeline <- function(response, Xmat = predictors, grid = rfGrid, cvpar = fitControl,...){
+    set.seed(1)
     model <- train(x = Xmat, y = response,
                    method = "rf",
                    metric = "Rsquared",
