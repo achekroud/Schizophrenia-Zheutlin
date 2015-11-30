@@ -70,7 +70,8 @@ s.log.targets <- apply(log.targets, 2, scale) %>% as.data.frame
 
 ### Machine Learning preparation
 ## Set up cross validation
-fitControl <- trainControl(method = "cv",
+fitControl <- trainControl(method = "repeatedcv",
+                           repeats = 3,
                            number = 10,
                            savePredictions = TRUE)
 
@@ -78,7 +79,7 @@ fitControl <- trainControl(method = "cv",
 gbmGrid    <- expand.grid(.interaction.depth = c(1,2),
                           .n.trees = seq(10,1000,by=50),
                           .shrinkage = c(0.01),
-                          .n.minobsinnode = 4)
+                          .n.minobsinnode = 5)
 rfGrid     <- expand.grid(.mtry = c(3,4,10,25)) 
 
 # Train models
@@ -171,7 +172,7 @@ rf.perfs.log   <- lapply(rf.loop.log, function(i) i[[2]])
 
 
 #### External Replication
-raw_rep <- swe.df[!apply(rep.outcomes, 1, function(x) (mean(is.na(x))==1)),]
+raw_rep <- swe.df[!apply(swe.df[,c(outcomes)], 1, function(x) (mean(is.na(x))==1)),]
 
 
 
