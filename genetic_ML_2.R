@@ -148,6 +148,7 @@ rf.perfs    <- lapply(rf.loop, function(i) i[[2]])
 rf.models.log  <- lapply(rf.loop.log, function(i) i[[1]])
 rf.perfs.log   <- lapply(rf.loop.log, function(i) i[[2]])
 
+plot(varImp(rf.models$CRT_TIME1, scale=TRUE), top=15)
 
 
 # crt1.out  <- promising[[1]]
