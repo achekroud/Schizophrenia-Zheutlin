@@ -11,9 +11,8 @@ library("e1071"); library("caret"); library("pROC")
 library("permute"); library("gbm"); library("klaR")
 library("dplyr")
 
-# Parallel Computing (default = n/2 cores)
-library("doMC")
-registerDoMC()
+# Parallel Computing 
+library("doMC"); registerDoMC(detectCores()-1)
 
 ### Directories and seeds
 set.seed(1) # Reading from the same sheet
@@ -76,11 +75,11 @@ fitControl <- trainControl(method = "repeatedcv",
                            savePredictions = TRUE)
 
 ## Hyperparameter grid search
-gbmGrid    <- expand.grid(.interaction.depth = c(1,2),
-                          .n.trees = seq(10,1000,by=50),
-                          .shrinkage = c(0.01),
-                          .n.minobsinnode = 5)
-rfGrid     <- expand.grid(.mtry = c(3,4,10,25)) 
+# gbmGrid    <- expand.grid(.interaction.depth = c(1,2),
+#                           .n.trees = seq(10,1000,by=50),
+#                           .shrinkage = c(0.01),
+#                           .n.minobsinnode = 5)
+rfGrid     <- expand.grid(.mtry = c(3,4,10)) 
 
 # Train models
 
@@ -112,23 +111,23 @@ glm.models.log  <- lapply(glm.loop.log, function(i) i[[1]])
 glm.perfs.log   <- lapply(glm.loop.log, function(i) i[[2]])
 
 
-gbmPipeline <- function(response, Xmat = predictors, grid = gbmGrid, cvpar = fitControl,...){
-    set.seed(1)
-    model <- train(x = Xmat, y = response,
-                   method = "gbm",
-                   metric = "Rsquared",
-                   tuneGrid = grid,
-                   trControl = cvpar)
-    perf <- getTrainPerf(model)
-    return(list(model,perf))
-}
-
-gbm.loop     <- lapply(targets, function(i) gbmPipeline(i))
-gbm.loop.log <- lapply(log.targets, function(i) gbmPipeline(i))
-gbm.models   <- lapply(gbm.loop, function(i) i[[1]])
-gbm.perfs    <- lapply(gbm.loop, function(i) i[[2]])
-gbm.models.log  <- lapply(gbm.loop.log, function(i) i[[1]])
-gbm.perfs.log   <- lapply(gbm.loop.log, function(i) i[[2]])
+# gbmPipeline <- function(response, Xmat = predictors, grid = gbmGrid, cvpar = fitControl,...){
+#     set.seed(1)
+#     model <- train(x = Xmat, y = response,
+#                    method = "gbm",
+#                    metric = "Rsquared",
+#                    tuneGrid = grid,
+#                    trControl = cvpar)
+#     perf <- getTrainPerf(model)
+#     return(list(model,perf))
+# }
+# 
+# gbm.loop     <- lapply(targets, function(i) gbmPipeline(i))
+# gbm.loop.log <- lapply(log.targets, function(i) gbmPipeline(i))
+# gbm.models   <- lapply(gbm.loop, function(i) i[[1]])
+# gbm.perfs    <- lapply(gbm.loop, function(i) i[[2]])
+# gbm.models.log  <- lapply(gbm.loop.log, function(i) i[[1]])
+# gbm.perfs.log   <- lapply(gbm.loop.log, function(i) i[[2]])
 
 rfPipeline <- function(response, Xmat = predictors, grid = rfGrid, cvpar = fitControl,...){
     set.seed(1)
@@ -199,29 +198,30 @@ rep.outcomes.s <- apply(rep.outcomes.s, 2, function(i) psych::winsor(i, trim=0.0
 
 # rep.outcomes <- apply(rep.outcomes, 2, function(i) psych::winsor(i, trim=0.03))
 
-gbm.pred.tr     <- lapply(gbm.models, function(i) predict(i, newdata=rep.predictors))
-gbm.pred.log.tr <- lapply(gbm.models.log, function(i) predict(i, newdata=rep.predictors))
+# gbm.pred.tr     <- lapply(gbm.models, function(i) predict(i, newdata=rep.predictors))
+# gbm.pred.log.tr <- lapply(gbm.models.log, function(i) predict(i, newdata=rep.predictors))
 rf.pred.tr      <- lapply(rf.models, function(i) predict(i, newdata=rep.predictors))
 rf.pred.log.tr  <- lapply(rf.models.log, function(i) predict(i, newdata=rep.predictors))
-
+glm.pred.tr     <- lapply(glm.models, function(i) predict(i, newdata=rep.predictors))
+glm.pred.log.tr <- lapply(glm.models.log, function(i) predict(i, newdata=rep.predictors))
 
 out.cors <- list()
 for (i in 1:8){
-    gbm.cor <- cor(gbm.pred.tr[[i]], rep.outcomes.s[,i], use="pairwise")
+    glm.cor <- cor(glm.pred.tr[[i]], rep.outcomes.s[,i], use="pairwise")
     rf.cor  <- cor(rf.pred.tr[[i]], rep.outcomes.s[,i], use="pairwise")
-    gbm.log.cor <- cor(gbm.pred.log.tr[[i]], rep.outcomes.log[,i], use="pairwise")
+    glm.log.cor <- cor(glm.pred.log.tr[[i]], rep.outcomes.log[,i], use="pairwise")
     rf.log.cor  <- cor(rf.pred.log.tr[[i]], rep.outcomes.log[,i], use="pairwise")
-    out.cors[[i]] <- c(gbm.cor, rf.cor, gbm.log.cor, rf.log.cor)
+    out.cors[[i]] <- c(glm.cor, rf.cor, glm.log.cor, rf.log.cor)
 }
 names(out.cors) <- names(rep.outcomes)
 
 out.ps <- list()
 for (i in 1:8){
-    gbm.cor <- cor.test(gbm.pred.tr[[i]], rep.outcomes.s[,i], use="pairwise")$p.value
+    glm.cor <- cor.test(glm.pred.tr[[i]], rep.outcomes.s[,i], use="pairwise")$p.value
     rf.cor  <- cor.test(rf.pred.tr[[i]], rep.outcomes.s[,i], use="pairwise")$p.value
-    gbm.log.cor <- cor.test(gbm.pred.log.tr[[i]], rep.outcomes.log[,i], use="pairwise")$p.value
+    glm.log.cor <- cor.test(glm.pred.log.tr[[i]], rep.outcomes.log[,i], use="pairwise")$p.value
     rf.log.cor  <- cor.test(rf.pred.log.tr[[i]], rep.outcomes.log[,i], use="pairwise")$p.value
-    out.ps[[i]] <- c(gbm.cor, rf.cor, gbm.log.cor, rf.log.cor)
+    out.ps[[i]] <- c(glm.cor, rf.cor, glm.log.cor, rf.log.cor)
 }
 names(out.ps) <- names(rep.outcomes)
 
@@ -233,19 +233,20 @@ dsz <- ifelse(raw_rep$dx %in% c(1,3), "pat", "con")
 library(lme4)
 library(nlme)
 
-mix <- cbind(rep.outcomes.s[,c(3,8)], rf.pred.tr[[3]],rf.pred.tr[[8]], raw_rep$FID) %>% as.data.frame
-names(mix) <- c("out.tr1","outvr", "pred.tr1", "pred.vr", "fid")
-mx.tr1 <- lmer(out.tr1 ~ pred.tr1 + (1 | fid), data=mix)
+mix <- cbind(rep.outcomes.log[,3], rep.outcomes.s[,c(2,8)], rf.pred.log.tr[[3]],rf.pred.tr[[2]],rf.pred.tr[[8]], raw_rep$FID) %>% as.data.frame
+names(mix) <- c("out.tr1.log","outvoc","outvr", "pred.tr1", "pred.voc","pred.vr", "fid")
+mx.tr1 <- lmer(out.tr1.log ~ pred.tr1 + (1 | fid), data=mix)
+mx.voc <- lmer(outvoc ~ pred.voc + (1 | fid), data=mix)
 mx.vr <- lmer(outvr ~ pred.vr + (1 | fid), data=mix)
 
-mx.tr1 <- nlme::lme(out.tr1 ~ pred.tr1, random = ~1 | fid, data = mix, na.action = na.omit)
+mx.tr1 <- nlme::lme(out.tr1.log ~ pred.tr1, random = ~1 | fid, data = mix, na.action = na.omit)
+mx.voc <- nlme::lme(outvoc ~ pred.voc, random = ~1 |fid, data = mix, na.action=na.omit)
 mx.vr <- nlme::lme(outvr ~ pred.vr, random = ~1 | fid, data = mix, na.action = na.omit)
 
-temp <- rf.pred.tr %>% as.data.frame() %>% cbind(dsz) %>% describeBy(group="dsz")
-temp
 
 
-save.image(file="amanda.results.Rdata")
+
+save.image(file="amanda.results_2.Rdata")
 
 
 # Tys random pca general ability shit
