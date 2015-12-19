@@ -53,7 +53,7 @@ predictors <- cnp.df %>% dplyr::select(one_of(snps)) %>% as.matrix()
 
 # get residuals
 resid <- lapply(outcomes, function(x) {
-  lm(eval(substitute(i ~ age, list(i = as.name(x)))), data = cnp.df)
+  lm(eval(substitute(i ~ age + gender, list(i = as.name(x)))), data = cnp.df)
 })
 
 resid_vals <- lapply(resid, function(x) residuals(x)) %>% as.data.frame()
@@ -244,7 +244,7 @@ mix.df <- cbind(rep.outcomes.s, raw_rep[,c(2,6,7)]) %>% as.data.frame
 mixed.mods <- lapply(1:7, function(x) {
     mix.df <- cbind(rep.outcomes.s[,x], rf.pred.tr[[x]], raw_rep[,c(2,6,7)]) %>% as.data.frame
     names(mix.df)[1:2] <- c("response", "prediction")
-    nlme::lme(response ~ prediction + age, random = ~1 | FID, na.action = na.omit, data = mix.df)
+    nlme::lme(response ~ prediction + age + gender, random = ~1 | FID, na.action = na.omit, data = mix.df)
 })
 names(mixed.mods) <- names(rep.outcomes)
 
