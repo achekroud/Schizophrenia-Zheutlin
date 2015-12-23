@@ -155,7 +155,26 @@ rf.perfs       <- lapply(rf.loop, function(i) i[[2]])
 # rf.perfs.log   <- lapply(rf.loop.log, function(i) i[[2]])
 
 
-# plot(varImp(rf.models$CRT_TIME1, scale=TRUE), top=15)
+
+# tempp <- function(response, Xmat = predictors, grid = rfGrid, cvpar = fitControl,...){
+#     set.seed(1)
+#     model <- train(x = Xmat, y = response,
+#                    method = "rf",
+#                    metric = "Rsquared",
+#                    trControl = cvpar)
+#     perf <- getTrainPerf(model)
+#     return(list(model,perf))
+# }
+# 
+# 
+# tempp.loop        <- lapply(targets, function(i) tempp(i))
+# tempp.models      <- lapply(tempp.loop, function(i) i[[1]])
+# tempp.perfs       <- lapply(tempp.loop, function(i) i[[2]])
+# 
+# varImp(tempp.models[[1]], useModel = FALSE)
+
+plot(varImp(rf.models$CRT_TIME1, scale=TRUE), top=20, main="Variable Importance: Trails 1/A")
+plot(varImp(rf.models$VR2DR_TOTALRAW, scale=TRUE), top=20, main="Variable Importance: VR II")
 
 
 # crt1.out  <- promising[[1]]
@@ -239,16 +258,23 @@ names(out.ps) <- names(rep.outcomes)
 # correlations controlling for FID for models that work
 
 
-mix.df <- cbind(rep.outcomes.s, raw_rep[,c(2,6,7)]) %>% as.data.frame
+# mix.df <- cbind(rep.outcomes.s, raw_rep[,c(2,6,7)]) %>% as.data.frame
 
 mixed.mods <- lapply(1:7, function(x) {
     mix.df <- cbind(rep.outcomes.s[,x], rf.pred.tr[[x]], raw_rep[,c(2,6,7)]) %>% as.data.frame
     names(mix.df)[1:2] <- c("response", "prediction")
-    nlme::lme(response ~ prediction + age + gender, random = ~1 | FID, na.action = na.omit, data = mix.df)
+    nlme::lme(response ~ prediction + age + sex, random = ~1 | FID, na.action = na.omit, data = mix.df)
 })
 names(mixed.mods) <- names(rep.outcomes)
 
 
+
+mixed.mods.glm <- lapply(1:7, function(x) {
+    mix.df <- cbind(rep.outcomes.s[,x], glm.pred.tr[[x]], raw_rep[,c(2,6,7)]) %>% as.data.frame
+    names(mix.df)[1:2] <- c("response", "prediction")
+    nlme::lme(response ~ prediction + age + sex, random = ~1 | FID, na.action = na.omit, data = mix.df)
+})
+names(mixed.mods.glm) <- names(rep.outcomes)
 
 
 
