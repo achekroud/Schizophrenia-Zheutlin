@@ -1,9 +1,10 @@
 # Schizophrenia-linked genetic influences on cognition
-# Author: AMC & ABZ, Nov 2015
+# Authors: AMC & ABZ, Nov 2015
 
 #### Housekeeping
 libs <- c("ggplot2", "RColorBrewer", "glmnet", "caret", "pROC", "permute", "gbm", "randomForest",
-          "plyr", "foreach", "doMC", "readxl", "psych", "e1071", "dplyr", "nlme")
+          "plyr", "foreach", "doMC", "readxl", "psych", "e1071", "dplyr", "nlme", 
+          "psych","stringer")
 lapply(libs, require, character.only = TRUE)
 registerDoMC(detectCores()-1)
 
@@ -190,7 +191,7 @@ names(out.ps) <- names(rep.outcomes)
 
 
 ##### ##### ##### ##### ##### 
-##### Mixed effects models controlling for FID
+##### Mixed effects models controlling for family ID
 ##### ##### ##### ##### ##### 
 
 mix <- cbind(rep.outcomes.s, rf.pred.tr, glm.pred.tr, raw_rep[,c("FID", "age", "sex")]) %>% as.data.frame
@@ -230,12 +231,36 @@ rval <- apply(r2,2,sqrt)
 tval <- apply(r2,2,function(x) sqrt((737*x)/(1-x)))
 pval <- apply(tval,2,function(x) 2*(1-abs(pt(x,df=737))))
 
+# general ability check 
+# calculated from all tasks excepting model-specific task
+# scaled, winsorized variables 
+
+# all 6 tasks
+g_all <- principal(rep.outcomes.s[,c(1:3,5:7)], nfactors=1, rotation="none",scores=T)
+g_all # fit = .97, proportion var = .61
+mix$g_all <- as.numeric(g_all$scores)
+
+# leave out trails1
+g_tr1 <- principal(rep.outcomes.s[,c(1:2,5:7)], nfactors=1, rotation="none",scores=T)
+g_tr1 # fit = .98, proportion var = .72
+mix$g_tr1 <- as.numeric(g_tr1$scores)
+
+# leave out vr2
+g_vr <- principal(rep.outcomes.s[,c(1:3,5:6)], nfactors=1, rotation="none",scores=T)
+g_vr # fit = .96, proportion var = .59
+mix$g_vr <- as.numeric(g_vr$scores)
+
+# mixed effect models with g vars
+mx.tr1.g <- lme(g_tr1 ~ CRT_TIME1.rf + age + sex, random = ~1 | fid, data = mix, na.action = na.omit)
+mx.vr.g <- lme(g_vr ~ VR2DR_TOTALRAW.rf + age + sex, random = ~1 | fid, data = mix, na.action = na.omit)
+
 # to load later
-save.image(file=paste0(workDir,"amanda.results4.Rdata"))
+save.image(file=paste0(workDir,"amanda.results5.Rdata"))
 
 #################### figure
-library(ggplot2); library(stringr)
-
+load(paste0(workDir,"amanda.results5.Rdata"))
+library(ggplot2); library(stringr); library(dplyr)
+     
 # snp-gene table
 code       <- read.csv("scz2.anneal.108.genes.csv")
 proxy      <- read.table("index-proxy-table_allsnps.txt",header=T)
@@ -248,6 +273,13 @@ names(fig_trails1) <- c("SNP", "Importance")
 fig_trails1$Gene   <- proxy[ match(fig_trails1$SNP, proxy$proxy), 3]
 fig_trails1$SNP    <- factor(fig_trails1$SNP,
                              levels = fig_trails1$SNP[order(fig_trails1$Importance)])
+fig_trails1$Gene2 <- fig_trails1$Gene %>% as.character()
+fig_trails1[1,5] <- "C1orf132, CD46*"
+fig_trails1[3,5] <- "GLT8D1, GNL3*"
+fig_trails1[11,5] <- "AC005609.1, CD14*"
+fig_trails1[13,5] <- "C2orf82, EFHD1*"
+fig_trails1[17,5] <- "ACD, C16orf86*"
+fig_trails1[20,5] <- "CILP2, GATAD2A*"
 
 # visual reproduction - delayed recall
 fig_vrdr           <- caret::varImp(rf.models$VR2DR_TOTALRAW, scale=TRUE)[[1]] %>% as.data.frame
@@ -256,44 +288,57 @@ names(fig_vrdr)    <- c("SNP", "Importance")
 fig_vrdr$Gene      <- proxy[match(fig_vrdr$SNP, proxy$proxy), 3]
 fig_vrdr$SNP       <- factor(fig_vrdr$SNP,
                              levels = fig_vrdr$SNP[order(fig_vrdr$Importance)])
-
+fig_vrdr$Gene2 <- fig_vrdr$Gene %>% as.character()
+fig_vrdr[1,5] <- "C4orf27, CLCN3*"
+fig_vrdr[7,5] <- "AC005609.1, CD14*"
+fig_vrdr[8,5] <- "GLT8D1, GNL3*"
+fig_vrdr[14,5] <- "ADAMTSL3, GOLGA6L4*"
+fig_vrdr[15,5] <- "SGSM2, SMG6*"
+fig_vrdr[20,5] <- "C2orf82, EFHD1*"
+  
 # code by shared vs. task-specific genes
 fig_trails1$shared         <- ifelse(fig_trails1$Gene %in% fig_vrdr[1:20,3],1,2) %>% as.factor()
 fig_vrdr$shared            <- ifelse(fig_vrdr$Gene %in% fig_trails1[1:20,3],1,2) %>% as.factor()
 levels(fig_trails1$shared) <- c("both tasks","task-specific")
 levels(fig_vrdr$shared)    <- c("both tasks","task-specific")
 
+# trails 1 figure
 ggplot(fig_trails1[1:20,], aes(x=SNP,y=Importance)) + 
-  geom_bar(aes(fill=shared),stat="identity",width=.75) +
-  scale_x_discrete(labels= function(x) str_wrap(rev(fig_trails1[1:20,3]), width=60)) +
-  scale_fill_manual(values=c("#0000FF","#CC0000")) +
-  theme(axis.title = element_text(size=13, face="bold"),
-        axis.text = element_text(size=9,color="black"),
+  geom_bar(aes(fill=shared),stat="identity",width=.85) +
+  geom_text(stat="identity",y=46, hjust=0, aes(label=Gene2), colour="white", size=4) +
+  scale_fill_manual(values=c("#B21212","#1485CC")) +
+  theme(axis.title = element_text(size=15, face="bold"),
+        axis.text = element_text(size=13,color="black"),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
         panel.background = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
-        legend.text = element_text(size=12),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        axis.line = element_line(color = "black")) +
+        legend.position = "none",
+        axis.line = element_line(color = "black"),
+        plot.title = element_text(hjust=-.06,vjust=1.8,size=18,face="bold")) +
+  ggtitle("A) Trails 1/A") +
   ylab("\nVariable Importance") +
   xlab("") +
-  coord_flip(ylim = c(50,100))
+  coord_flip(ylim = c(45,100))
 
+# vis reprod figure
 ggplot(fig_vrdr[1:20,], aes(x=SNP,y=Importance)) + 
-  geom_bar(aes(fill=shared),stat="identity",width=.75) +
-  scale_x_discrete(labels= function(x) str_wrap(rev(fig_vrdr[1:20,3]), width=60)) +
-  scale_fill_manual(values=c("#0000FF","#CC0000")) +
-  theme(axis.title = element_text(size=13, face="bold"),
-        axis.text = element_text(size=9,color="black"),
+  geom_bar(aes(fill=shared),stat="identity",width=.85) +
+  geom_text(stat="identity",y=46, hjust=0, aes(label=Gene2), colour="white", size=4) +
+  scale_fill_manual(values=c("#B21212","#1485CC")) +  
+  theme(axis.title = element_text(size=15, face="bold"),
+        axis.text = element_text(size=13,color="black"),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
         panel.background = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
-        legend.text = element_text(size=12),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        axis.line = element_line(color = "black")) +
+        legend.position = "none",
+        axis.line = element_line(color = "black"),
+        plot.title = element_text(hjust=-.06,vjust=1.8,size=18,face="bold")) +
+  ggtitle("B) Visual Reproduction II") +
   ylab("\nVariable Importance") +
   xlab("") +
-  coord_flip(ylim = c(50,100))
+  coord_flip(ylim = c(45,100))
 
