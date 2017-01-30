@@ -120,7 +120,7 @@ rfPipelinePerm <- function(response, Xmat = predictors, grid = rfGrid, cvpar = f
                  trControl = cvpar,
                  importance = TRUE)
   perf <- getTrainPerf(model)
-  return(perf)
+  return(list(model,perf))
 }
 
 bootMe <- function(permutations, target, xmat = predictors,...){
@@ -129,8 +129,9 @@ bootMe <- function(permutations, target, xmat = predictors,...){
     if(perm %% 5 == 0){print(paste((perm - 1), "perms done so far"))}
     set.seed(perm)
     permutedTarget <- target[shuffle(length(target))]
-    fit <- rfPipelinePerm(permutedTarget, Xmat = xmat)
-    out_perm[[perm]] <- fit
+    mod <- rfPipelinePerm(permutedTarget, Xmat = xmat)[[1]]
+    fit <- rfPipelinePerm(permutedTarget, Xmat = xmat)[[2]]
+    out_perm[[perm]] <- list(mod,fit)
   }
   return(out_perm)
 }
@@ -138,14 +139,16 @@ bootMe <- function(permutations, target, xmat = predictors,...){
 
 
 set.seed(1)
-test <- bootMe(4, targets$CVLT_TOTCOR, predictors)
+ test <- bootMe(2, targets$CVLT_TOTCOR, predictors)
+
 
 set.seed(1)
-perm.loop     <- lapply(targets, function(i) bootMe(500, i, predictors))
+perm.loop     <- lapply(select(targets, -CRT_TIME2), function(i) bootMe(10, i, predictors))
 save.image(file = "permutations_for_amanda.RData")
 
 
-
+model <- test[[1]][[1]]$finalModel
+test.rf.pred <- predict(model, newdata = as.matrix(rep.predictors))
 
 
 
