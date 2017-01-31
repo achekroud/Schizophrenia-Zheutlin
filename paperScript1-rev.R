@@ -4,6 +4,7 @@
 libs <- c("ggplot2", "RColorBrewer", "glmnet", "caret", "pROC", "permute", "gbm", "randomForest",
           "plyr", "foreach", "doMC", "psych", "e1071", "dplyr", "nlme", 
           "psych","stringr")
+# libs <- c("caret", "permute", "randomForest", "doMC")
 invisible(lapply(libs, require, character.only = TRUE))
 registerDoMC(detectCores()-1)
 
@@ -130,8 +131,8 @@ bootMe <- function(permutations, target, xmat = predictors,...){
     set.seed(perm)
     permutedTarget <- target[shuffle(length(target))]
     mod <- rfPipelinePerm(permutedTarget, Xmat = xmat)[[1]]
-    fit <- rfPipelinePerm(permutedTarget, Xmat = xmat)[[2]]
-    out_perm[[perm]] <- list(mod,fit)
+    names(mod) <- paste0(mod, perm)
+    out_perm[[perm]] <- mod
   }
   return(out_perm)
 }
@@ -139,17 +140,45 @@ bootMe <- function(permutations, target, xmat = predictors,...){
 
 
 set.seed(1)
- test <- bootMe(2, targets$CVLT_TOTCOR, predictors)
+ # test <- bootMe(2, targets$CVLT_TOTCOR, predictors)
+
+# 
+# set.seed(1)
+# perm.loop     <- lapply(select(targets, -CRT_TIME2), function(i) bootMe(2, i, predictors))
 
 
-set.seed(1)
-perm.loop     <- lapply(select(targets, -CRT_TIME2), function(i) bootMe(10, i, predictors))
+perm.loop     <- lapply(select(targets, CRT_TIME1, VR2DR_TOTALRAW), function(i) bootMe(100, i, predictors))
+CRT1_TIME1.models     <- perm.loop[[1]]
+VR2DR_TOTALRAW.models <- perm.loop[[2]]
+
+
+p.crt1.predictions  <- lapply(CRT1_TIME1.models, function(x) predict(x, newdata = rep.predictors))
+names(p.crt1.predictions) <- paste0("CRT_TIME1.", 1:100)
+
+p.mix.crt1 <- cbind(rep.outcomes.s, p.crt1.predictions, raw_rep[,c("FID", "age", "sex")]) %>% as.data.frame
+
+permstats.p.crt1 <- list()
+for (perm in 1:100){
+  f1.crt1 <- formula(paste0("CRT_TIME1 ~", "CRT_TIME1.", perm, "  + age + sex" ) )
+  m1.crt1 <- nlme::lme(fixed=f1.crt1, random = ~1 | FID, data = p.mix.crt1, na.action = na.omit)
+  permstats.p.crt1[[perm]] <- summary(m1.crt1)$tTable[2,5]
+}
+
+
+
+p.vr2d.predictions  <- lapply(vr2d_TIME1.models, function(x) predict(x, newdata = rep.predictors))
+names(p.vr2d.predictions) <- paste0("CRT_TIME1.", 1:100)
+
+p.mix.vr2d <- cbind(rep.outcomes.s, p.vr2d.predictions, raw_rep[,c("FID", "age", "sex")]) %>% as.data.frame
+
+permstats.p.vr2d <- list()
+for (perm in 1:100){
+  f1.vr2d <- formula(paste0("CRT_TIME1 ~", "CRT_TIME1.", perm, "  + age + sex" ) )
+  m1.vr2d <- nlme::lme(fixed=f1.vr2d, random = ~1 | FID, data = p.mix.vr2d, na.action = na.omit)
+  permstats.p.vr2d[[perm]] <- summary(m1.vr2d)$tTable[2,5]
+}
+
 save.image(file = "permutations_for_amanda.RData")
-
-
-model <- test[[1]][[1]]$finalModel
-test.rf.pred <- predict(model, newdata = as.matrix(rep.predictors))
-
 
 
 
@@ -160,7 +189,7 @@ test.rf.pred <- predict(model, newdata = as.matrix(rep.predictors))
 raw_rep <- swe.df[!apply(swe.df[,c(outcomes)], 1, function(x) (mean(is.na(x))==1)),] #rm NAs
 
 rep.predictors <- raw_rep %>% dplyr::select(one_of(snps)) %>% as.matrix
-rep.predictors <- apply(rep.predictors,2,function(x) ifelse(x==11,1,ifelse(x==12,2,3)))
+# rep.predictors <- apply(rep.predictors,2,function(x) ifelse(x==11,1,ifelse(x==12,2,3)))
 rep.outcomes   <- raw_rep %>% dplyr::select(one_of(outcomes))
 
 # multiply outcomes to fit CNP scales
